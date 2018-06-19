@@ -8,7 +8,7 @@ import os
 import pandas as pd
 import matplotlib.pyplot as plt
 
-datafile_path = './data_pd/coffee_menu.csv'
+datafile_path = './data_pd/Beijing_PM.csv'
 
 # 结果保存路径
 output_path = './output'
@@ -44,34 +44,29 @@ def analyze_data(data_df):
     """
         数据分析
     """
-    beverage_category_col = data_df['Beverage_category']
-    beverage_categories = beverage_category_col.unique()
-    print('饮品类别：')
-    print(beverage_categories)
-
-    catetogry_grouped = data_df.groupby('Beverage_category')
-    category_count = catetogry_grouped['Calories'].count()
-    category_mean_calories = catetogry_grouped['Calories'].mean()
-
-    return category_count, category_mean_calories
+    year_col = data_df['year']
+    year_categories = year_col.unique()
+    print('年份：')
+    print(year_categories)
 
 
-def save_and_show_results(category_count, category_mean_calories):
+    year_grouped = data_df.groupby('year')
+
+    return year_grouped['PM_China','PM_US'].mean()
+
+
+def save_and_show_results(year_grouped_mean):
     """
         结果展示
     """
-    category_count.to_csv(os.path.join(output_path, 'category_count.csv'))
-    category_mean_calories.to_csv(os.path.join(output_path, 'category_mean_calories.csv'))
 
-    category_count.plot(kind='bar')
+    year_grouped_mean.plot(kind='bar')
     plt.title('Category Count')
     plt.tight_layout()
-    plt.savefig(os.path.join(output_path, 'category_count.png'))
+    plt.savefig(os.path.join(output_path, 'year_grouped_mean.png'))
+    year_grouped_mean.to_csv(os.path.join(output_path, 'year_grouped_mean.csv'))
 
-    category_mean_calories.plot(kind='bar')
-    plt.title('Category Average Calories')
-    plt.tight_layout()
-    plt.savefig(os.path.join(output_path, 'category_mean_calories.png'))
+
 
 
 def main():
@@ -85,10 +80,10 @@ def main():
     inspect_data(data_df)
 
     # 数据分析
-    category_count, category_mean_calories = analyze_data(data_df)
+    year_grouped = analyze_data(data_df)
 
     # 结果展示
-    save_and_show_results(category_count, category_mean_calories)
+    save_and_show_results(year_grouped)
 
 
 if __name__ == '__main__':

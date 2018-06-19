@@ -7,8 +7,9 @@
 import os
 import pandas as pd
 import matplotlib.pyplot as plt
+import seaborn as sns
 
-datafile_path = './data_pd/coffee_menu.csv'
+datafile_path = './house_data.csv'
 
 # 结果保存路径
 output_path = './output'
@@ -20,6 +21,7 @@ def collect_data():
     """
         数据获取
     """
+
     data_df = pd.read_csv(datafile_path)
     return data_df
 
@@ -40,38 +42,34 @@ def inspect_data(data_df):
     print(data_df.describe())
 
 
+
+
 def analyze_data(data_df):
     """
         数据分析
     """
-    beverage_category_col = data_df['Beverage_category']
-    beverage_categories = beverage_category_col.unique()
-    print('饮品类别：')
-    print(beverage_categories)
+    data_df.dropna()
+    print('丢弃无效数据后的行数： {}' .format(data_df.count()))
+    return data_df
 
-    catetogry_grouped = data_df.groupby('Beverage_category')
-    category_count = catetogry_grouped['Calories'].count()
-    category_mean_calories = catetogry_grouped['Calories'].mean()
-
-    return category_count, category_mean_calories
-
-
-def save_and_show_results(category_count, category_mean_calories):
+def save_and_show_results(data_df):
     """
         结果展示
     """
-    category_count.to_csv(os.path.join(output_path, 'category_count.csv'))
-    category_mean_calories.to_csv(os.path.join(output_path, 'category_mean_calories.csv'))
+    sns.boxplot(x='bedrooms',y='price',data=data_df)
+    # plt.hist(data_df[data_df['bedrooms'] == 5]['price'],bins=30)
 
-    category_count.plot(kind='bar')
-    plt.title('Category Count')
     plt.tight_layout()
-    plt.savefig(os.path.join(output_path, 'category_count.png'))
+    plt.show()
 
-    category_mean_calories.plot(kind='bar')
-    plt.title('Category Average Calories')
+    sns.jointplot(x='bedrooms',y='price',data=data_df)
     plt.tight_layout()
-    plt.savefig(os.path.join(output_path, 'category_mean_calories.png'))
+    plt.show()
+
+    corr_data = data_df.corr()
+    sns.heatmap(corr_data,annot=True)
+    plt.tight_layout()
+    plt.show()
 
 
 def main():
@@ -85,10 +83,10 @@ def main():
     inspect_data(data_df)
 
     # 数据分析
-    category_count, category_mean_calories = analyze_data(data_df)
+    data_df = analyze_data(data_df)
 
     # 结果展示
-    save_and_show_results(category_count, category_mean_calories)
+    save_and_show_results(data_df)
 
 
 if __name__ == '__main__':
