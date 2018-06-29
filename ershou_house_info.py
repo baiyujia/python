@@ -110,6 +110,5 @@ def main():
     get_lp_urls()
     get_lp_info_entry()
 
-
 if __name__ == '__main__':
     main()
