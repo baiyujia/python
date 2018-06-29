@@ -111,8 +111,6 @@ def get_lp_info_entry():
                 set_pachong_status(status, {'lp_urllist_complete': True, 'last_url_pos': index})
                 print('获取第{}个楼盘:{}' .format(index,lp_detail_info['lpname']))
 
-
-
 def main():
     get_lp_urls()
     get_lp_info_entry()
