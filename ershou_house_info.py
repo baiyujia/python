@@ -13,7 +13,7 @@ headers = {
 
 db_house = 'house'
 
-C_DAY = str(time.gmtime().tm_year) + str(time.gmtime().tm_mon) + str(time.gmtime().tm_mday) + str(time.gmtime().tm_min)
+C_DAY = str(time.gmtime().tm_year) + str(time.gmtime().tm_mon) + str(time.gmtime().tm_mday)
 
 url_address_format = 'https://xa.anjuke.com/sale/p{}/'
 
@@ -167,7 +167,7 @@ def get_lp_urls_entry():
     client = pymongo.MongoClient('localhost', 27017, connect=False)
     house = client[db_house]
 
-    lp_page_list = [url_address_format.format(str(i)) for i in range(1, 2)]
+    lp_page_list = [url_address_format.format(str(i)) for i in range(1, 50)]
     pool = Pool(processes=1)
     pool.map(get_lp_urls, lp_page_list)
     pool.close()
