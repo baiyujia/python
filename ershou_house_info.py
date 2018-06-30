@@ -62,7 +62,9 @@ def set_url_collect_over(url):
     client = pymongo.MongoClient('localhost', 27017, connect=False)
     house = client[db_house]
     url_list = house['网址列表页']
-    url_list.update_one({'网址':url}, {'$set', {'采集完毕':True}})
+    url_list.update_one({'网址': url}, {'$set', {'采集完毕':True}})
+    return
+
 
 def insert_url_to_db(record):
     client = pymongo.MongoClient('localhost', 27017, connect=False)
@@ -90,9 +92,7 @@ def get_lp_urls(page):
         insert_url_to_db({'网址': lp_address,  '采集完毕':False})
         print('房屋网址:',lp_address)
 
-# 获取指定的楼盘的信息：价格，位置，开盘时间 等
-def get_lp_info(url):
-
+def check_if_page_collected(url):
     # 先看该网址是否已经采集过了
     client = pymongo.MongoClient('localhost', 27017, connect=False)
     house = client[db_house]
@@ -102,7 +102,36 @@ def get_lp_info(url):
     lp_info_record = url_list.find_one({'网址':url})
     if lp_info_record['采集完毕'] == True :
         #print('已经采集完毕',url)
+        return True
+    else:
+        return False
+def update_lp_info(info_record):
+    client = pymongo.MongoClient('localhost', 27017, connect=False)
+    house = client[db_house]
+
+    lp_info = house['楼盘信息页']
+    db_record = lp_info.find_one({'标题': info_record['标题']})
+    if db_record == None:
+        lp_info.insert_one(info_record)
+        # set_pachong_status({'lp_urllist_complete': True, 'last_url_pos': index})
+        print('获取房屋:{}'.format(info_record['标题']))
+    else:
+        lp_info.update_one({'标题': info_record['标题']}, {'$set': {'总价' + '_' + C_DAY: info_record['总价' + '_' + C_DAY]}})
+        print('更新房屋:{}'.format(info_record['标题']))
+
+
+    print('更新采集状态完毕')
+
+# 获取指定的楼盘的信息：价格，位置，开盘时间 等
+def get_lp_info(url):
+    if check_if_page_collected(url):
         return
+
+    client = pymongo.MongoClient('localhost', 27017, connect=False)
+    house = client[db_house]
+    url_list = house['网址列表页']
+    url_list.update_one({'网址': url}, {'$set': {'采集完毕':True}})
+
     print('采集：', url)
     time.sleep(1)
     wb_data = requests.get(url,headers=headers)
@@ -124,19 +153,12 @@ def get_lp_info(url):
     info_record['标题'] = clear_text
     total_price = soup.select(
         '#content > div.wrapper > div.wrapper-lf.clearfix > div.basic-info.clearfix > span.light.info-tag > em')[0].text
+    info_record['总价' + '_' + C_DAY] = total_price
+    update_lp_info(info_record)
 
-    db_record = lp_info.find_one({'标题': info_record['标题']})
-    if db_record == None:
-        info_record['总价' + '_' + C_DAY] = total_price
-        lp_info.insert_one(info_record)
-        # set_pachong_status({'lp_urllist_complete': True, 'last_url_pos': index})
-        print('获取房屋:{}'.format(info_record['标题']))
-    else:
-        lp_info.update_one({'标题': info_record['标题']}, {'$set': {'总价' + '_' + C_DAY: total_price}})
-        print('更新房屋:{}'.format(info_record['标题']))
-    url_list.update_one({'网址':url},{'$set':{'采集完毕':True}})
-    print('更新采集状态完毕')
 
+
+    #set_url_collect_over(url)
 def get_lp_urls_entry():
     status = get_pachong_status()
     if status.find_one()['列表是否完整'] == True:
@@ -145,8 +167,8 @@ def get_lp_urls_entry():
     client = pymongo.MongoClient('localhost', 27017, connect=False)
     house = client[db_house]
 
-    lp_page_list = [url_address_format.format(str(i)) for i in range(1, 50)]
-    pool = Pool()
+    lp_page_list = [url_address_format.format(str(i)) for i in range(1, 2)]
+    pool = Pool(processes=1)
     pool.map(get_lp_urls, lp_page_list)
     pool.close()
     pool.join()
