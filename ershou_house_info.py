@@ -91,7 +91,8 @@ def insert_url_to_db(record):
     client = pymongo.MongoClient('localhost', 27017, connect=False)
     house = client[db_house]
     url_list = house['网址列表页']
-    url_list.insert_one(record)
+    if url_list.find_one({'网址':record}) != None:
+        url_list.insert_one(record)
 
 def insert_houseinfo_to_db(info_record):
     client = pymongo.MongoClient('localhost', 27017, connect=False)
@@ -209,7 +210,7 @@ def collect_house_urls_entry():
     house = client[db_house]
 
     lp_page_list = [url_address_format.format(str(i)) for i in range(1, 50)]
-    pool = Pool(processes=10)
+    pool = Pool(processes=20)
     pool.map(collect_house_urls, lp_page_list)
     pool.close()
     pool.join()
@@ -251,7 +252,7 @@ def get_collect_house_list():
 def collect_house_info_entry():
     url_list_para = get_collect_house_list()
 
-    pool = Pool(processes=10)
+    pool = Pool(processes=20)
     pool.map(collect_house_info, url_list_para)
     pool.close()
     pool.join()
