@@ -138,7 +138,7 @@ def collect_house_urls(page):
     # 插入楼盘网址
     for url in house_url_list:
         insert_url_to_db({'网址': url,  '采集完毕':False})
-        print('房屋网址:',lp_address)
+        print('房屋网址:',url)
 
 def check_if_page_collected(url):
     # 先看该网址是否已经采集过了
@@ -257,7 +257,7 @@ def collect_house_info_entry():
     pool.join()
     fix_nulldata()
 
-def save_hourse_db():
+def export_db_to_file():
     client = pymongo.MongoClient('localhost', 27017, connect=False)
     house = client[db_house]
 
@@ -295,7 +295,7 @@ def main():
     collect_house_urls_entry()
     collect_house_info_entry()
     house_analyze()
-    save_hourse_db()
+    export_db_to_file()
 
 if __name__ == '__main__':
     main()
