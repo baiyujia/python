@@ -55,7 +55,7 @@ def get_total_collect_satus():
     # 列表不完整，就删除掉列表
     if status.find_one()['列表是否完整'] == False:
         for url in url_list.find():
-            url_list.update_one({'网址':url['网址']},{'$set':{'列表是否完整': False}})
+            url_list.update_one({'网址':url['网址']},{'$set':{'采集完毕': False}})
         pass
 
     # 和上次更新日期不同，就删除列表，同时刷新本次日期

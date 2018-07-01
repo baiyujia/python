@@ -56,7 +56,7 @@ def get_total_collect_satus():
     # 列表不完整，就删除掉列表
     if status.find_one()['列表是否完整'] == False:
         for url in url_list.find():
-            url_list.update_one({'网址': url['网址']}, {'$set': {'列表是否完整': False}})
+            url_list.update_one({'网址': url['网址']}, {'$set': {'采集完毕': False}})
         pass
 
     # 和上次更新日期不同，就删除列表，同时刷新本次日期
@@ -101,14 +101,14 @@ def insert_houseinfo_to_db(info_record):
     house = client[db_house]
 
     lp_info = house['楼盘信息页']
-    db_record = lp_info.find_one({'标题': info_record['标题']})
+    db_record = lp_info.find_one({'楼盘名称': info_record['楼盘名称']})
     if db_record == None:
         lp_info.insert_one(info_record)
-        print('获取房屋:{}'.format(info_record['标题']))
+        print('获取房屋:{}'.format(info_record['楼盘名称']))
     else:
-        lp_info.update_one({'标题': info_record['标题']},
+        lp_info.update_one({'楼盘名称': info_record['楼盘名称']},
                            {'$set': {'单价' + '_' + C_DAY: info_record['单价' + '_' + C_DAY], '网址': info_record['网址']}})
-        print('更新房屋:{}'.format(info_record['标题']))
+        print('更新房屋:{}'.format(info_record['楼盘名称']))
     print('更新采集状态完毕')
 
 
@@ -200,7 +200,7 @@ def parse_house_info(url):
     else:
         up_time = up_time[0].text
 
-    return {'楼盘名称':lp_name, '单价' + '_' + C_DAY :price, '周边价格':price_around, '地理位置': addr.strip()} , NORMAL_STATE
+    return {'楼盘名称':lp_name, '单价' + '_' + C_DAY :price, '周边价格':price_around, '地理位置': addr.strip(), '网址': url} , NORMAL_STATE
 
 # 获取指定的楼盘的信息：价格，位置，开盘时间 等
 def collect_house_info(url):
