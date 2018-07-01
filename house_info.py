@@ -65,6 +65,7 @@ def get_lp_urls():
 def get_lp_info(url):
     wb_data = requests.get(url)
     soup = BeautifulSoup(wb_data.text, 'lxml')
+
     lp_name = soup.select('#j-triggerlayer')[0].text
     price = soup.select('#container > div.main-detail.mod > div.basic-details > div.basic-parms-wrap > dl > dd.price')[
         0].text
@@ -91,7 +92,7 @@ def get_lp_info(url):
     else:
         up_time = up_time[0].text
 
-    return {'lpname':lp_name, 'price':price, 'price_around':price_around, 'addr': addr.strip()}
+    return {'楼盘名称':lp_name, '价格':price, '周边价格':price_around, '地理位置': addr.strip()}
 
 
 def get_lp_info_entry():
@@ -112,10 +113,13 @@ def get_lp_info_entry():
                 print('获取第{}个楼盘:{}' .format(index,lp_detail_info['lpname']))
 
 def main():
-    get_lp_urls()
+    get_lp_urls_entry()
     get_lp_info_entry()
+    house_analyze()
+    save_hourse_db()
 
-
+if __name__ == '__main__':
+    main()
 
 if __name__ == '__main__':
     main()
