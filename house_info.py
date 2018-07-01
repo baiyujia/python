@@ -177,8 +177,12 @@ def parse_house_info(url):
     lp_name = soup.select('#j-triggerlayer')[0].text
     price = soup.select('#container > div.main-detail.mod > div.basic-details > div.basic-parms-wrap > dl > dd.price')[
         0].text
-    if '待定' in price:
+    clear_price = re.search(r'\d+', price.replace(' ', '').replace('\n',''))
+    if clear_price != None:
+        price = clear_price.group(0)
+    else:
         price = '待定'
+    print(price)
     price_around = soup.select(
         '#container > div.main-detail.mod > div.basic-details > div.basic-parms-wrap > dl > dd.around-price > span')
     if len(price_around) == 0:
@@ -193,13 +197,16 @@ def parse_house_info(url):
     else:
         addr = addr[0].text
 
-    up_time = soup.select(
-        '#container > div.main-detail.mod > div.basic-details > div.basic-parms-wrap > dl > dd > span.lpAddr-text')
-    if len(up_time) == 0:
-        up_time = '无'
-    else:
-        up_time = up_time[0].text
-
+    open_sell_time = soup.select(
+        '#container > div.main-detail.mod > div.basic-details > div.brief-info.basic-parms > p > label')
+    open_sell_time_text = 'NA'
+    if len(open_sell_time) != 0:
+        clear_text = open_sell_time[0].text.replace(' ', '').replace('\n','')
+        print(clear_text)
+        open_sell_time = re.search(r'\d+年\d+月\d+日', clear_text)
+        if open_sell_time != None:
+            open_sell_time_text = open_sell_time.group(0)
+    print({'楼盘名称':lp_name, '单价' + '_' + C_DAY :price, '周边价格':price_around, '地理位置': addr.strip(), '网址': url, '开盘时间':open_sell_time_text})
     return {'楼盘名称':lp_name, '单价' + '_' + C_DAY :price, '周边价格':price_around, '地理位置': addr.strip(), '网址': url} , NORMAL_STATE
 
 # 获取指定的楼盘的信息：价格，位置，开盘时间 等
@@ -274,7 +281,7 @@ def get_collect_house_list():
 def collect_house_info_entry():
     url_list_para = get_collect_house_list()
 
-    pool = Pool(processes=10)
+    pool = Pool(processes=20)
     pool.map(collect_house_info, url_list_para)
     pool.close()
     pool.join()
