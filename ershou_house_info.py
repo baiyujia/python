@@ -16,7 +16,7 @@ headers = {
 
 db_house = 'house'
 
-C_DAY = "%02d_%02d_%02d" %(time.gmtime().tm_year,time.gmtime().tm_mon,time.gmtime().tm_mday)
+C_DAY = "%02d_%02d_%02d" %(time.localtime().tm_year,time.localtime().tm_mon,time.localtime().tm_mday)
 
 PAGE_GONE_STATE = 'gone state'
 FORBIDDEN_STATE = 'forbidden state'
