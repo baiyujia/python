@@ -8,6 +8,7 @@ from pandas import Series,DataFrame
 import pandas as pd
 from multiprocessing import Pool
 import random
+from pachong_status import *
 
 headers = {
     'cookies': 'ctid=31; aQQ_ajkguid=D0174100-3E84-3050-1537-SX0626220205; sessid=F458D7EC-B0CE-6BA4-C930-SX0626220205; isp=true; twe=2; 58tj_uuid=2f50f7d6-4abf-4c60-8eae-cbaf641f9580; Hm_lvt_c5899c8768ebee272710c9c5f365a6d8=1530021729; als=0; ajk_member_captcha=38a0011b908a1c16fca40584e66cf3ab; lp_lt_ut=a34ae0a5041a1ac2ab5058b3ff39ac1d; lps=http%3A%2F%2Fxa.anjuke.com%2Fsale%2Fp1%2F%7C; init_refer=; new_uv=7; _ga=GA1.2.466653724.1530276981; _gid=GA1.2.612205714.1530276981; browse_comm_ids=398617; new_session=0; propertys=kxqo1b-pb35gy_; Hm_lpvt_c5899c8768ebee272710c9c5f365a6d8=1530277715; _gat=1; __xsptplusUT_8=1; __xsptplus8=8.5.1530276981.1530277735.10%234%7C%7C%7C%7C%7C%23%23LW_EYiniJbsOE0diRvFfQzQG3HUoWAyX%23',
@@ -16,83 +17,9 @@ headers = {
 
 db_house = 'house'
 
-C_DAY = "%02d_%02d_%02d" %(time.localtime().tm_year,time.localtime().tm_mon,time.localtime().tm_mday)
-
-PAGE_GONE_STATE = 'gone state'
-FORBIDDEN_STATE = 'forbidden state'
-LAST_PAGE_STATE = 'last page state'
-NORMAL_STATE = 'normal state'
-
 url_address_format = 'https://xa.anjuke.com/sale/p{}/'
 
 houseinfo_selector = '#content > div.wrapper > div.wrapper-lf.clearfix > div.houseInfoBox > div > div.houseInfo-wrap > div > div dd'
-
-#检查网页是否被冻结，或者是否下架了,或者最后一页
-def get_page_state(soup):
-    if '访问验证-安居客' in soup.title.text:
-        print('访问受限制了，需要手动验证')
-        return FORBIDDEN_STATE
-    elif '您要浏览的网页可能被删除' in soup.title.text:
-        print('房屋下架了')
-        return PAGE_GONE_STATE
-    elif len(soup.select('#content > div.sale-left > div.filter-no')) != 0:
-        print('没有合适的房源了！')
-        return LAST_PAGE_STATE
-    return NORMAL_STATE
-
-#获取数据爬取的状态，和当前日期有关
-def get_total_collect_satus():
-    client = pymongo.MongoClient('localhost', 27017, connect=False)
-
-    house = client[db_house]
-    status = house['采集状态页']
-    url_list = house['网址列表页']
-
-    # 没有记录，就插入一条
-    if status.count() == 0:
-        status.insert_one({'采集状态行': True,'列表是否完整': False,'采集日期':C_DAY})
-
-    # 列表不完整，就删除掉列表
-    if status.find_one()['列表是否完整'] == False:
-        for url in url_list.find():
-            url_list.update_one({'网址':url['网址']},{'$set':{'采集完毕': False}})
-        pass
-
-    # 和上次更新日期不同，就删除列表，同时刷新本次日期
-    if status.find_one()['采集日期'] != C_DAY:
-        #把url_list中的完成标识设置为false
-        #house.drop_collection('网址列表页')
-        for url in url_list.find():
-            url_list.update_one({'网址':url['网址']},{'$set':{'采集完毕': False}})
-        status.remove()
-        status.insert_one({'采集状态行': True,'列表是否完整': False,'采集日期':C_DAY})
-
-    return status
-
-#设置爬虫的状态，主要是刷新采集的日期，以及网址列表是否完整
-def set_total_collect_satus(newRec):
-    client = pymongo.MongoClient('localhost', 27017, connect=False)
-    house = client[db_house]
-    status = house['采集状态页']
-    status.remove({})
-    status.insert_one(newRec)
-    return
-
-
-def set_house_collect_satus(url):
-    client = pymongo.MongoClient('localhost', 27017, connect=False)
-    house = client[db_house]
-    url_list = house['网址列表页']
-    url_list.update_one({'网址': url}, {'$set': {'采集完毕':True}},upsert=True)
-    return
-
-
-def insert_url_to_db(record):
-    client = pymongo.MongoClient('localhost', 27017, connect=False)
-    house = client[db_house]
-    url_list = house['网址列表页']
-    if url_list.find_one({'网址':record}) != None:
-        url_list.insert_one(record)
 
 def insert_houseinfo_to_db(info_record):
     client = pymongo.MongoClient('localhost', 27017, connect=False)
@@ -102,12 +29,10 @@ def insert_houseinfo_to_db(info_record):
     db_record = lp_info.find_one({'标题': info_record['标题']})
     if db_record == None:
         lp_info.insert_one(info_record)
-        # set_total_collect_satus({'lp_urllist_complete': True, 'last_url_pos': index})
         print('获取房屋:{}'.format(info_record['标题']))
     else:
         lp_info.update_one({'标题': info_record['标题']}, {'$set': {'总价' + '_' + C_DAY: info_record['总价' + '_' + C_DAY],'网址':info_record['网址']}})
         print('更新房屋:{}'.format(info_record['标题']))
-    print('更新采集状态完毕')
 
 #根据页面解析出网址列表
 def parse_house_urls(page):
@@ -129,37 +54,19 @@ def collect_house_urls(page):
 
     #找到最后一页了
     if pagestate == LAST_PAGE_STATE:
-        print('已经达到最大页码了！：', page)
+        print(page, '已经达到最大页码了')
         set_total_collect_satus({'采集状态行': True,'列表是否完整': True,'采集日期':C_DAY})
         return
     elif pagestate == FORBIDDEN_STATE:
-        print('网页需要验证!')
+        print(page,'需要验证!')
         return
 
     # 插入楼盘网址
     for url in house_url_list:
         insert_url_to_db({'网址': url,  '采集完毕':False})
-        print('房屋网址:',url)
-
-def check_if_page_collected(url):
-    # 先看该网址是否已经采集过了
-    client = pymongo.MongoClient('localhost', 27017, connect=False)
-    house = client[db_house]
-    url_list = house['网址列表页']
-    lp_info = house['楼盘信息页']
-
-    lp_info_record = url_list.find_one({'网址':url})
-    if lp_info_record['采集完毕'] == True :
-        #print('已经采集完毕',url)
-        return True
-    else:
-        return False
-    
-
 
 #解析页面的信息
 def parse_house_info(url):
-    print('采集：', url)
     delaytime = random.randint(1,5)
     time.sleep(delaytime)
     wb_data = requests.get(url,headers=headers)
@@ -275,9 +182,26 @@ def house_analyze():
     house = client[db_house]
     addrlist={None}
     lp_info = house['楼盘信息页']
-    # for lp in lp_info.find():
+
+    #价格波动房源
+    key_list = lp_info.find()[0].keys()
+    fj_key_list=[]
+    for key in key_list:
+        if '总价' in key:
+            fj_key_list.insert(0, key)
+
+    for lp in lp_info.find():
+        fj_price_set = set()
+        for fj_key in fj_key_list:
+            fj_price_set.add(lp[fj_key])
+        if len(fj_price_set) > 1:
+            print('标题',lp['标题'])
+            for fj_key in fj_key_list:
+                print(lp[fj_key])
+    #for lp in lp_info.find():
+
         #更新记录的样例
-        # if '总价_2018_07_01' in lp.keys():
+        # if '总价' in lp.keys():
         #
         #     lp['总价_2018_06_30'] = lp['总价_2018_07_01']
         #     del lp['总价_2018_07_01']
@@ -293,10 +217,10 @@ def house_analyze():
         #         addrlist.add(lp['标题'])
 
 def main():
-    collect_house_urls_entry()
-    collect_house_info_entry()
+    # collect_house_urls_entry()
+    # collect_house_info_entry()
     house_analyze()
-    export_db_to_file()
+    # export_db_to_file()
 
 if __name__ == '__main__':
     main()
