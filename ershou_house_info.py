@@ -184,20 +184,28 @@ def house_analyze():
     lp_info = house['楼盘信息页']
 
     #价格波动房源
-    key_list = lp_info.find()[0].keys()
-    fj_key_list=[]
-    for key in key_list:
-        if '总价' in key:
-            fj_key_list.insert(0, key)
+
+
 
     for lp in lp_info.find():
+        key_list = lp.keys()
+        fj_key_list = []
+        for key in key_list:
+            if '总价' in key:
+                fj_key_list.insert(0, key)
+
         fj_price_set = set()
         for fj_key in fj_key_list:
-            fj_price_set.add(lp[fj_key])
+            if lp[fj_key] == 'NA':
+                if len(fj_price_set) > 1:
+                    fj_price_set.add(lp[fj_key])
+            else:
+                fj_price_set.add(lp[fj_key])
         if len(fj_price_set) > 1:
-            print('标题',lp['标题'])
+            str = lp['楼盘名称'] + '----' + lp['单价'] + '----' + lp['标题']
             for fj_key in fj_key_list:
-                print(lp[fj_key])
+                str += '-->  '+ lp[fj_key]
+            print(str)
     #for lp in lp_info.find():
 
         #更新记录的样例
