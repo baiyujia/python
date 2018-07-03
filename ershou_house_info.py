@@ -15,6 +15,43 @@ headers = {
     'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/67.0.3396.87 Safari/537.36'
 }
 
+proxy_list = [
+    "http://210.38.1.145:8080",
+    "http://101.71.32.154:80",
+    "http://101.71.86.30:8080",
+    "http://101.71.86.17:80",
+    "http://106.14.51.145:8118",
+    "http://210.38.1.138:8080",
+    "http://122.226.183.147:80",
+    "http://115.159.50.52:80",
+    "http://91.73.131.254:8080",
+    "http://159.203.0.155:3128",
+    "http://101.71.86.29:8080",
+    "http://218.92.145.42:8080",
+    "http://61.136.163.245:8103",
+    "http://172.87.132.189:8080",
+    "http://212.47.252.49:3128",
+    "http://222.255.122.58:3128",
+    "http://82.137.250.213:8080",
+    "http://50.59.162.26:8118",
+    "http://187.87.77.76:3128",
+    "http://64.173.224.142:9991",
+    "http://31.182.52.156:3129",
+    "http://144.217.49.109:80",
+    "http://210.38.1.132:8080",
+    "http://210.38.1.134:8081",
+    "http://124.238.235.135:81",
+    "http://103.76.203.22:53281",
+    "http://165.138.225.250:8080",
+    "http://183.224.12.13:80",
+    "http://80.107.117.210:3128",
+    "http://101.71.85.180:8080",
+    "http://158.69.87.247:3128",
+    "http://36.42.32.29:80",
+    "http://91.223.64.179:80",
+    "http://111.13.7.119:80",
+]
+
 db_house = 'house'
 
 url_address_format = 'https://xa.anjuke.com/sale/p{}/'
@@ -36,9 +73,11 @@ def insert_houseinfo_to_db(info_record):
 
 #根据页面解析出网址列表
 def parse_house_urls(page):
-    delaytime = random.randint(1,5)
+    delaytime = random.randint(1,3)
     time.sleep(delaytime)
-    wb_data = requests.get(page,headers=headers)
+    proxy = random.choice(proxy_list)
+    proxies = {'http': proxy}
+    wb_data = requests.get(page,headers=headers,proxies=proxies)
     soup = BeautifulSoup(wb_data.text, 'lxml')
     
     pagestate = get_page_state(soup)
@@ -64,12 +103,15 @@ def collect_house_urls(page):
     # 插入楼盘网址
     for url in house_url_list:
         insert_url_to_db({'网址': url,  '采集完毕':False})
+        print('分析网址：',url)
 
 #解析页面的信息
 def parse_house_info(url):
-    delaytime = random.randint(1,5)
+    delaytime = random.randint(1,3)
     time.sleep(delaytime)
-    wb_data = requests.get(url,headers=headers)
+    proxy = random.choice(proxy_list)
+    proxies = {'http': proxy}
+    wb_data = requests.get(url,headers=headers,proxies=proxies)
     soup = BeautifulSoup(wb_data.text, 'lxml')
 
     pagestate = get_page_state(soup)
@@ -84,7 +126,12 @@ def parse_house_info(url):
         clear_text = info.text.replace('\t', '').replace('\n', '').replace('\ue003', '').strip()
         info_record[info_dict[index]] = clear_text
     info_record['网址'] = url
-    clear_text = soup.select('#content > div.clearfix.title-guarantee > h3')[0].text.replace('\t', '').replace('\n', '').strip()
+
+    try:
+        clear_text = soup.select('#content > div.clearfix.title-guarantee > h3')[0].text.replace('\t', '').replace('\n', '').strip()
+    except:
+        print('异常网址:', url)
+        raise
     info_record['标题'] = clear_text
     total_price = soup.select(
         '#content > div.wrapper > div.wrapper-lf.clearfix > div.basic-info.clearfix > span.light.info-tag > em')[0].text
@@ -225,10 +272,10 @@ def house_analyze():
         #         addrlist.add(lp['标题'])
 
 def main():
-    # collect_house_urls_entry()
-    # collect_house_info_entry()
+    collect_house_urls_entry()
+    collect_house_info_entry()
     house_analyze()
-    # export_db_to_file()
+    export_db_to_file()
 
 if __name__ == '__main__':
     main()

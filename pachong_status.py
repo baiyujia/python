@@ -21,11 +21,15 @@ def get_page_state(soup):
         print('访问受限制了，需要手动验证')
         return FORBIDDEN_STATE
     elif '您要浏览的网页可能被删除' in soup.title.text:
-        print('房屋下架了')
+        print('房屋被删除了')
         return PAGE_GONE_STATE
+
     elif len(soup.select('#content > div.sale-left > div.filter-no')) != 0:
         print('没有合适的房源了！')
         return LAST_PAGE_STATE
+    elif len(soup.select('body > div.expire-content > div.expire-main > div.expire-similar-mod > div.hd > span')) != 0:
+        print('房屋卖出或者过期了')
+        return PAGE_GONE_STATE
     return NORMAL_STATE
 
 
