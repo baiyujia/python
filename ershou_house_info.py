@@ -9,48 +9,16 @@ import pandas as pd
 from multiprocessing import Pool
 import random
 from pachong_status import *
-
+from matplotlib.font_manager import FontManager, FontProperties
+import matplotlib.pyplot as plt
 headers = {
     'cookies': 'ctid=31; aQQ_ajkguid=D0174100-3E84-3050-1537-SX0626220205; sessid=F458D7EC-B0CE-6BA4-C930-SX0626220205; isp=true; twe=2; 58tj_uuid=2f50f7d6-4abf-4c60-8eae-cbaf641f9580; Hm_lvt_c5899c8768ebee272710c9c5f365a6d8=1530021729; als=0; ajk_member_captcha=38a0011b908a1c16fca40584e66cf3ab; lp_lt_ut=a34ae0a5041a1ac2ab5058b3ff39ac1d; lps=http%3A%2F%2Fxa.anjuke.com%2Fsale%2Fp1%2F%7C; init_refer=; new_uv=7; _ga=GA1.2.466653724.1530276981; _gid=GA1.2.612205714.1530276981; browse_comm_ids=398617; new_session=0; propertys=kxqo1b-pb35gy_; Hm_lpvt_c5899c8768ebee272710c9c5f365a6d8=1530277715; _gat=1; __xsptplusUT_8=1; __xsptplus8=8.5.1530276981.1530277735.10%234%7C%7C%7C%7C%7C%23%23LW_EYiniJbsOE0diRvFfQzQG3HUoWAyX%23',
     'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/67.0.3396.87 Safari/537.36'
 }
 
 proxy_list = [
-    "http://210.38.1.145:8080",
-    "http://101.71.32.154:80",
-    "http://101.71.86.30:8080",
-    "http://101.71.86.17:80",
-    "http://106.14.51.145:8118",
-    "http://210.38.1.138:8080",
-    "http://122.226.183.147:80",
-    "http://115.159.50.52:80",
-    "http://91.73.131.254:8080",
-    "http://159.203.0.155:3128",
-    "http://101.71.86.29:8080",
-    "http://218.92.145.42:8080",
-    "http://61.136.163.245:8103",
-    "http://172.87.132.189:8080",
-    "http://212.47.252.49:3128",
-    "http://222.255.122.58:3128",
-    "http://82.137.250.213:8080",
-    "http://50.59.162.26:8118",
-    "http://187.87.77.76:3128",
-    "http://64.173.224.142:9991",
-    "http://31.182.52.156:3129",
-    "http://144.217.49.109:80",
-    "http://210.38.1.132:8080",
-    "http://210.38.1.134:8081",
-    "http://124.238.235.135:81",
-    "http://103.76.203.22:53281",
-    "http://165.138.225.250:8080",
-    "http://183.224.12.13:80",
-    "http://80.107.117.210:3128",
-    "http://101.71.85.180:8080",
-    "http://158.69.87.247:3128",
-    "http://36.42.32.29:80",
-    "http://91.223.64.179:80",
-    "http://111.13.7.119:80",
 ]
+
 
 db_house = 'house'
 
@@ -68,16 +36,17 @@ def insert_houseinfo_to_db(info_record):
         lp_info.insert_one(info_record)
         print('获取房屋:{}'.format(info_record['标题']))
     else:
-        lp_info.update_one({'标题': info_record['标题']}, {'$set': {'总价' + '_' + C_DAY: info_record['总价' + '_' + C_DAY],'网址':info_record['网址']}})
+        lp_info.update_one({'标题': info_record['标题']}, {'$set': info_record})
         print('更新房屋:{}'.format(info_record['标题']))
-
+def getChineseFont():
+    return FontProperties(fname='/Library/Fonts/Songti.ttc')
 #根据页面解析出网址列表
 def parse_house_urls(page):
-    delaytime = random.randint(1,3)
+    delaytime = random.randint(1,5)
     time.sleep(delaytime)
-    proxy = random.choice(proxy_list)
-    proxies = {'http': proxy}
-    wb_data = requests.get(page,headers=headers,proxies=proxies)
+    #proxy = random.choice(proxy_list)
+    #proxies = {'http': proxy}
+    wb_data = requests.get(page,headers=headers)
     soup = BeautifulSoup(wb_data.text, 'lxml')
     
     pagestate = get_page_state(soup)
@@ -107,11 +76,11 @@ def collect_house_urls(page):
 
 #解析页面的信息
 def parse_house_info(url):
-    delaytime = random.randint(1,3)
+    delaytime = random.randint(2,5)
     time.sleep(delaytime)
-    proxy = random.choice(proxy_list)
-    proxies = {'http': proxy}
-    wb_data = requests.get(url,headers=headers,proxies=proxies)
+    #proxy = random.choice(proxy_list)
+    #proxies = {'http': proxy}
+    wb_data = requests.get(url,headers=headers)
     soup = BeautifulSoup(wb_data.text, 'lxml')
 
     pagestate = get_page_state(soup)
@@ -129,9 +98,14 @@ def parse_house_info(url):
 
     try:
         clear_text = soup.select('#content > div.clearfix.title-guarantee > h3')[0].text.replace('\t', '').replace('\n', '').strip()
+        fabu_date = soup.select('#content > div.wrapper > div.wrapper-lf.clearfix > div.houseInfoBox > h4 > span.house-encode')[
+            0].text
+        re_fabu_date = re.search(r'(\d+)年(\d+)月(\d+)日',fabu_date)
+
     except:
         print('异常网址:', url)
         raise
+    info_record['发布日期'] = re_fabu_date.group(0)
     info_record['标题'] = clear_text
     total_price = soup.select(
         '#content > div.wrapper > div.wrapper-lf.clearfix > div.basic-info.clearfix > span.light.info-tag > em')[0].text
@@ -164,7 +138,7 @@ def collect_house_urls_entry():
     house = client[db_house]
 
     lp_page_list = [url_address_format.format(str(i)) for i in range(1, 50)]
-    pool = Pool(processes=20)
+    pool = Pool(processes=5)
     pool.map(collect_house_urls, lp_page_list)
     pool.close()
     pool.join()
@@ -224,6 +198,15 @@ def export_db_to_file():
         df = df.append(pd_data, ignore_index=True,sort=True)
     df.to_csv('./house' + C_DAY + '.csv', sep=',', encoding='utf-8')
     print('导出完毕！')
+
+def plot_price_going(house_data):
+    house_data.plot(kind='line')
+    plt.title('房价走势')
+    plt.tight_layout()
+
+    pass
+
+#分析波动房源，并且打印出来
 def house_analyze():
     client = pymongo.MongoClient('localhost', 27017, connect=False)
     house = client[db_house]
@@ -232,27 +215,54 @@ def house_analyze():
 
     #价格波动房源
 
-
-
+    bodong_lp_list=[]
     for lp in lp_info.find():
         key_list = lp.keys()
         fj_key_list = []
+        # 找出所有的价格标签
         for key in key_list:
             if '总价' in key:
-                fj_key_list.insert(0, key)
+                fj_key_list.append(key)
 
+        #找出所有的价格
         fj_price_set = set()
+        fj_price_dict = {}
         for fj_key in fj_key_list:
             if lp[fj_key] == 'NA':
                 if len(fj_price_set) > 1:
                     fj_price_set.add(lp[fj_key])
             else:
                 fj_price_set.add(lp[fj_key])
+
+        #如果价格的数量大于1，说明价格有波动
         if len(fj_price_set) > 1:
+            bodong_lp_list.append(lp)
             str = lp['楼盘名称'] + '----' + lp['单价'] + '----' + lp['标题']
             for fj_key in fj_key_list:
                 str += '-->  '+ lp[fj_key]
             print(str)
+    print('波动楼盘个数:' , len(bodong_lp_list))
+    biaoi_list = []
+    for lp in bodong_lp_list:
+        biaoi_list.append(lp['标题'])
+
+
+
+    data_df = pd.read_csv('./house' + C_DAY + '.csv',index_col='标题')
+    # data_df = pd.read_csv('./house' + '2018_07_06' + '.csv', index_col='标题')
+
+    df = data_df.loc[biaoi_list].filter(regex='总价').T
+    for i in range(10,len(bodong_lp_list)+1,10):
+        #plt.figure(1,figsize=(16,10),dpi=300)
+        plt.rcParams['font.family'] = ['STFangsong']
+
+        df.iloc[:, i-10:i].plot(rot=90,figsize=(16,9),xticks=range(10),grid=True)
+        plt.ylabel('总价(万元)',fontproperties=getChineseFont())
+        plt.title('房价波动图(2018_6_30至'+C_DAY+')',fontproperties=getChineseFont())
+        plt.xticks(fontproperties=getChineseFont())
+        plt.legend(prop=getChineseFont())
+        plt.tight_layout()
+        plt.show()
     #for lp in lp_info.find():
 
         #更新记录的样例
@@ -272,10 +282,10 @@ def house_analyze():
         #         addrlist.add(lp['标题'])
 
 def main():
-    collect_house_urls_entry()
-    collect_house_info_entry()
+    # collect_house_urls_entry()
+    # collect_house_info_entry()
+    #
+    # export_db_to_file()
     house_analyze()
-    export_db_to_file()
-
 if __name__ == '__main__':
     main()
