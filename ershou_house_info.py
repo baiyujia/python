@@ -58,6 +58,7 @@ def parse_house_urls(page):
 
 # 根据具体的网址，解析出房屋的具体信息
 def collect_house_urls(page):
+    print('分析网页：',page)
     house_url_list, pagestate = parse_house_urls(page)
 
     #找到最后一页了
@@ -67,6 +68,7 @@ def collect_house_urls(page):
         return
     elif pagestate == FORBIDDEN_STATE:
         print(page,'需要验证!')
+        collect_house_urls(page)
         return
 
     # 插入楼盘网址
@@ -86,6 +88,8 @@ def parse_house_info(url):
     pagestate = get_page_state(soup)
     if pagestate != NORMAL_STATE:
         return None, pagestate
+    elif pagestate == FORBIDDEN_STATE:
+        parse_house_info(url)
 
     info_dict={0:'楼盘名称', 1:'地理位置',2:'交房时间',3:'住宅类型',4:'户型',5:'面积',6:'方向',7:'层数',8:'单价',9:'首付',10:'月供',11:'装修程度'}
 
@@ -98,13 +102,15 @@ def parse_house_info(url):
 
     try:
         clear_text = soup.select('#content > div.clearfix.title-guarantee > h3')[0].text.replace('\t', '').replace('\n', '').strip()
-        fabu_date = soup.select('#content > div.wrapper > div.wrapper-lf.clearfix > div.houseInfoBox > h4 > span.house-encode')[
-            0].text
-        re_fabu_date = re.search(r'(\d+)年(\d+)月(\d+)日',fabu_date)
-
     except:
         print('异常网址:', url)
         raise
+
+    fabu_date = \
+    soup.select('#content > div.wrapper > div.wrapper-lf.clearfix > div.houseInfoBox > h4 > span.house-encode')[
+        0].text
+    re_fabu_date = re.search(r'(\d+)年(\d+)月(\d+)日', fabu_date)
+
     info_record['发布日期'] = re_fabu_date.group(0)
     info_record['标题'] = clear_text
     total_price = soup.select(
@@ -199,15 +205,7 @@ def export_db_to_file():
     df.to_csv('./house' + C_DAY + '.csv', sep=',', encoding='utf-8')
     print('导出完毕！')
 
-def plot_price_going(house_data):
-    house_data.plot(kind='line')
-    plt.title('房价走势')
-    plt.tight_layout()
-
-    pass
-
-#分析波动房源，并且打印出来
-def house_analyze():
+def plot_price_going():
     client = pymongo.MongoClient('localhost', 27017, connect=False)
     house = client[db_house]
     addrlist={None}
@@ -281,10 +279,46 @@ def house_analyze():
         #     else:
         #         addrlist.add(lp['标题'])
 
+    pass
+def pos_parse_fun(para):
+
+    para['区域'] = para['地理位置'].split('－')[0]
+    para['子区域'] = para['地理位置'].split('－')[1]
+    para['街道'] = para['地理位置'].split('－')[2]
+    return para
+def plot_group_fenbu():
+    data_df = pd.read_csv('./house' + C_DAY + '.csv',index_col='标题')
+    data_df['区域'] = '-'
+    data_df['子区域'] = '-'
+    data_df['街道'] = '-'
+
+    data_df = data_df.apply(pos_parse_fun,axis=1)
+    data_df.groupby('区域').mean().sort_values(by='总价_2018_07_08')['总价_2018_07_08'].plot(kind='bar',grid=True,figsize=(20,12),rot=70)
+
+    plt.ylabel('总价(万元)', fontproperties=getChineseFont())
+    plt.title('区域房屋均价', fontproperties=getChineseFont())
+    plt.xticks(fontproperties=getChineseFont())
+    plt.legend(prop=getChineseFont())
+    plt.tight_layout()
+    plt.show()
+def plot_groupby_name(name):
+    data_df = pd.read_csv('./house' + C_DAY + '.csv',index_col='标题')
+    data_df.filter(regex=name, axis=0).filter(regex='总价').plot(kind='bar',grid=True,figsize=(20,12),rot=70)
+    plt.ylabel('总价(万元)', fontproperties=getChineseFont())
+    plt.title('房屋售价图', fontproperties=getChineseFont())
+    plt.xticks(fontproperties=getChineseFont())
+    plt.legend(prop=getChineseFont())
+    plt.tight_layout()
+    plt.show()
+    plt.show()
+#分析波动房源，并且打印出来
+def house_analyze():
+    # plot_price_going()
+    plot_group_fenbu()
+    plot_groupby_name('紫薇*尚层')
 def main():
     # collect_house_urls_entry()
     # collect_house_info_entry()
-    #
     # export_db_to_file()
     house_analyze()
 if __name__ == '__main__':

@@ -19,7 +19,7 @@ NORMAL_STATE = 'normal state'
 def get_page_state(soup):
     if '访问验证-安居客' in soup.title.text:
         print('访问受限制了，需要手动验证')
-        time.sleep(100)
+        time.sleep(10)
         return FORBIDDEN_STATE
     elif '您要浏览的网页可能被删除' in soup.title.text:
         print('房屋被删除了')
@@ -85,7 +85,7 @@ def insert_url_to_db(record):
     client = pymongo.MongoClient('localhost', 27017, connect=False)
     house = client[db_house]
     url_list = house['网址列表页']
-    if url_list.find_one({'网址': record}) != None:
+    if url_list.find_one({'网址': record}) == None:
         url_list.insert_one(record)
 
 def check_if_page_collected(url):
