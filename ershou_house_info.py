@@ -21,7 +21,7 @@ proxy_list = [
 
 
 db_house = 'house'
-
+PIC_PATH = '/Users/zhlsuo/Desktop/房价走势图/'
 url_address_format = 'https://xa.anjuke.com/sale/p{}/'
 
 houseinfo_selector = '#content > div.wrapper > div.wrapper-lf.clearfix > div.houseInfoBox > div > div.houseInfo-wrap > div > div dd'
@@ -192,7 +192,7 @@ def collect_house_info_entry():
     pool.map(collect_house_info, url_list_para)
     pool.close()
     pool.join()
-    fix_nulldata()
+    #fix_nulldata()
 
 def export_db_to_file():
     client = pymongo.MongoClient('localhost', 27017, connect=False)
@@ -216,6 +216,7 @@ def plot_price_going():
     #价格波动房源
 
     bodong_lp_list=[]
+    f = open(PIC_PATH + '房屋走势.txt','w')
     for lp in lp_info.find():
         # 找出所有的价格标签
         fj_key_list = [key for key in lp.keys() if '总价' in key]
@@ -224,11 +225,12 @@ def plot_price_going():
         #如果价格的数量大于1，说明价格有波动
         if len(fj_price_set) > 1:
             bodong_lp_list.append(lp)
-            str = lp['楼盘名称'] + '----' + lp['单价'] + '----' + lp['标题']
+            str_out = lp['楼盘名称'] + '----' + lp['单价'] + '----' + lp['标题']
             for fj_key in fj_key_list:
-                str += '-->  '+ lp[fj_key]
-            print(str)
-    print('波动楼盘个数:' , len(bodong_lp_list))
+                str_out += '-->  '+ lp[fj_key]
+            f.write(str_out)
+            f.write('\n')
+    f.close()
     biaoi_list = [lp['标题'] for lp in bodong_lp_list]
 
     data_df = pd.read_csv('./house' + C_DAY + '.csv',index_col='标题')
@@ -237,7 +239,6 @@ def plot_price_going():
     df = data_df.loc[biaoi_list].filter(regex='总价').T
     for i in range(10,len(bodong_lp_list)+1,10):
         #plt.figure(1,figsize=(16,10),dpi=300)
-        plt.rcParams['font.family'] = ['STFangsong']
 
         df.iloc[:, i-10:i].plot(rot=90,figsize=(16,9),grid=True)
         plt.ylabel('总价(万元)',fontproperties=getChineseFont())
@@ -245,7 +246,7 @@ def plot_price_going():
         plt.xticks(fontproperties=getChineseFont())
         plt.legend(prop=getChineseFont())
         plt.tight_layout()
-        plt.show()
+        plt.savefig(PIC_PATH + '房价波动图' + str(int(i/10)) + '.png')
 
 def pos_parse_fun(para):
     para['区域'] = para['地理位置'].split('－')[0]
@@ -267,19 +268,18 @@ def plot_group_fenbu():
     plt.xticks(fontproperties=getChineseFont())
     plt.legend(prop=getChineseFont())
     plt.tight_layout()
-    plt.show()
+    plt.savefig(PIC_PATH + '区域分布.png')
 
 def plot_groupby_name(name):
     data_df = pd.read_csv('./house' + C_DAY + '.csv',index_col='标题')
-    data_df.info
 
-    data_df.filter(regex=name, axis=0).filter(regex='单价').plot(kind='bar',grid=True,figsize=(20,12),rot=70)
+    data_df.filter(regex=name, axis=0).filter(regex='单价').plot(kind='bar',grid=True,figsize=(20,12),rot=90)
     plt.ylabel('单价(元)', fontproperties=getChineseFont())
     plt.title('房屋售价图', fontproperties=getChineseFont())
     plt.xticks(fontproperties=getChineseFont())
     plt.legend(prop=getChineseFont())
     plt.tight_layout()
-    plt.show()
+    plt.savefig(PIC_PATH + name + '.png')
 
 #累计3天无统计信息，则不再采集
 def drop_invalid_house():
@@ -348,9 +348,11 @@ def house_analyze():
     plot_groupby_name('紫薇*田园*都市')
 
 def main():
-    # collect_house_urls_entry()
-    # collect_house_info_entry()
-    #export_db_to_file()
+    print('采集开始时间：', time.ctime())
+    collect_house_urls_entry()
+    collect_house_info_entry()
+    export_db_to_file()
     house_analyze()
+    print('采集结束时间：', time.ctime())
 if __name__ == '__main__':
     main()
