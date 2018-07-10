@@ -10,7 +10,9 @@ from multiprocessing import Pool
 import random
 from pachong_status import *
 from matplotlib.font_manager import FontManager, FontProperties
-import matplotlib.pyplot as plt
+import matplotlib
+import sys
+import threading
 headers = {
     'cookies': 'ctid=31; aQQ_ajkguid=D0174100-3E84-3050-1537-SX0626220205; sessid=F458D7EC-B0CE-6BA4-C930-SX0626220205; isp=true; twe=2; 58tj_uuid=2f50f7d6-4abf-4c60-8eae-cbaf641f9580; Hm_lvt_c5899c8768ebee272710c9c5f365a6d8=1530021729; als=0; ajk_member_captcha=38a0011b908a1c16fca40584e66cf3ab; lp_lt_ut=a34ae0a5041a1ac2ab5058b3ff39ac1d; lps=http%3A%2F%2Fxa.anjuke.com%2Fsale%2Fp1%2F%7C; init_refer=; new_uv=7; _ga=GA1.2.466653724.1530276981; _gid=GA1.2.612205714.1530276981; browse_comm_ids=398617; new_session=0; propertys=kxqo1b-pb35gy_; Hm_lpvt_c5899c8768ebee272710c9c5f365a6d8=1530277715; _gat=1; __xsptplusUT_8=1; __xsptplus8=8.5.1530276981.1530277735.10%234%7C%7C%7C%7C%7C%23%23LW_EYiniJbsOE0diRvFfQzQG3HUoWAyX%23',
     'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/67.0.3396.87 Safari/537.36'
@@ -34,15 +36,15 @@ def insert_houseinfo_to_db(info_record):
     db_record = lp_info.find_one({'网址': info_record['网址']})
     if db_record == None:
         lp_info.insert_one(info_record)
-        print('获取房屋:{}'.format(info_record['标题']))
+        # print('获取房屋:{}'.format(info_record['标题']))
     else:
         lp_info.update_one({'网址': info_record['网址']}, {'$set': info_record})
-        print('更新房屋:{}'.format(info_record['标题']))
+        #print('更新房屋:{}'.format(info_record['标题']))
 def getChineseFont():
     return FontProperties(fname='/Library/Fonts/Songti.ttc')
 #根据页面解析出网址列表
 def parse_house_urls(page):
-    delaytime = random.randint(1,5)
+    delaytime = random.randint(1,3)
     time.sleep(delaytime)
     #proxy = random.choice(proxy_list)
     #proxies = {'http': proxy}
@@ -74,14 +76,13 @@ def collect_house_urls(page):
     # 插入楼盘网址
     for url in house_url_list:
         insert_url_to_db({'网址': url,  '采集完毕':False})
-        print('分析网址：',url)
+        #print('分析网址：',url)
 
 #解析页面的信息
 def parse_house_info(url):
-    delaytime = random.randint(2,5)
+    delaytime = random.randint(1,3)
     time.sleep(delaytime)
-    #proxy = random.choice(proxy_list)
-    #proxies = {'http': proxy}
+
     wb_data = requests.get(url,headers=headers)
     soup = BeautifulSoup(wb_data.text, 'lxml')
 
@@ -90,7 +91,6 @@ def parse_house_info(url):
         return None, pagestate
     elif pagestate == FORBIDDEN_STATE:
         parse_house_info(url)
-
     info_dict={0:'楼盘名称', 1:'地理位置',2:'交房时间',3:'住宅类型',4:'户型',5:'面积',6:'方向',7:'层数',8:'单价',9:'首付',10:'月供',11:'装修程度'}
 
     house_info = soup.select(houseinfo_selector)
@@ -120,11 +120,9 @@ def parse_house_info(url):
 
 # 获取指定的楼盘的信息：价格，位置，开盘时间 等
 def collect_house_info(url):
-
     if check_if_page_collected(url):
         return
     info_record ,pagestate = parse_house_info(url)
-
     # 页面消失了，可能是下架了，也可能是卖出了，需要把该页面设置为完成状态
     if pagestate == PAGE_GONE_STATE:
         set_house_collect_satus(url)
@@ -188,7 +186,7 @@ def collect_house_info_entry():
     url_list_para = get_collect_house_list()
     #无效的房屋直接设置为采集完毕
     drop_invalid_house()
-    pool = Pool(processes=20)
+    pool = Pool(processes=5)
     pool.map(collect_house_info, url_list_para)
     pool.close()
     pool.join()
@@ -204,7 +202,7 @@ def export_db_to_file():
     for info in lp_info.find():
         pd_data = DataFrame.from_dict(info, orient='index').T
         df = df.append(pd_data, ignore_index=True,sort=True)
-    df.to_csv('./house' + C_DAY + '.csv', sep=',', encoding='utf-8')
+    df.to_csv(PIC_PATH + 'house' + C_DAY + '.csv', sep=',', encoding='utf-8')
     print('导出完毕！')
 
 def plot_price_going():
@@ -233,20 +231,19 @@ def plot_price_going():
     f.close()
     biaoi_list = [lp['标题'] for lp in bodong_lp_list]
 
-    data_df = pd.read_csv('./house' + C_DAY + '.csv',index_col='标题')
-    # data_df = pd.read_csv('./house' + '2018_07_06' + '.csv', index_col='标题')
+    data_df = pd.read_csv(PIC_PATH + 'house' + C_DAY + '.csv',index_col='标题')
 
     df = data_df.loc[biaoi_list].filter(regex='总价').T
     for i in range(10,len(bodong_lp_list)+1,10):
         #plt.figure(1,figsize=(16,10),dpi=300)
 
         df.iloc[:, i-10:i].plot(rot=90,figsize=(16,9),grid=True)
-        plt.ylabel('总价(万元)',fontproperties=getChineseFont())
-        plt.title('房价波动图(2018_6_30至'+C_DAY+')',fontproperties=getChineseFont())
-        plt.xticks(fontproperties=getChineseFont())
-        plt.legend(prop=getChineseFont())
-        plt.tight_layout()
-        plt.savefig(PIC_PATH + '房价波动图' + str(int(i/10)) + '.png')
+        matplotlib.pyplot.ylabel('总价(万元)',fontproperties=getChineseFont())
+        matplotlib.pyplot.title('房价波动图(2018_6_30至'+C_DAY+')',fontproperties=getChineseFont())
+        matplotlib.pyplot.xticks(fontproperties=getChineseFont())
+        matplotlib.pyplot.legend(prop=getChineseFont())
+        matplotlib.pyplot.tight_layout()
+        matplotlib.pyplot.savefig(PIC_PATH + '房价波动图' + str(int(i/10)) + '.png')
 
 def pos_parse_fun(para):
     para['区域'] = para['地理位置'].split('－')[0]
@@ -255,7 +252,7 @@ def pos_parse_fun(para):
     return para
 
 def plot_group_fenbu():
-    data_df = pd.read_csv('./house' + C_DAY + '.csv',index_col='标题')
+    data_df = pd.read_csv(PIC_PATH + 'house' + C_DAY + '.csv',index_col='标题')
     data_df['区域'] = '-'
     data_df['子区域'] = '-'
     data_df['街道'] = '-'
@@ -263,23 +260,23 @@ def plot_group_fenbu():
     data_df = data_df.apply(pos_parse_fun,axis=1)
     data_df.groupby('区域').mean().sort_values(by='单价')['单价'].plot(kind='bar',grid=True,figsize=(20,12),rot=70)
 
-    plt.ylabel('单价(元)', fontproperties=getChineseFont())
-    plt.title('区域房屋均价', fontproperties=getChineseFont())
-    plt.xticks(fontproperties=getChineseFont())
-    plt.legend(prop=getChineseFont())
-    plt.tight_layout()
-    plt.savefig(PIC_PATH + '区域分布.png')
+    matplotlib.pyplot.ylabel('单价(元)', fontproperties=getChineseFont())
+    matplotlib.pyplot.title('区域房屋均价', fontproperties=getChineseFont())
+    matplotlib.pyplot.xticks(fontproperties=getChineseFont())
+    matplotlib.pyplot.legend(prop=getChineseFont())
+    matplotlib.pyplot.tight_layout()
+    matplotlib.pyplot.savefig(PIC_PATH + '区域分布.png')
 
 def plot_groupby_name(name):
-    data_df = pd.read_csv('./house' + C_DAY + '.csv',index_col='标题')
+    data_df = pd.read_csv(PIC_PATH + 'house' + C_DAY + '.csv',index_col='标题')
 
     data_df.filter(regex=name, axis=0).filter(regex='单价').plot(kind='bar',grid=True,figsize=(20,12),rot=90)
-    plt.ylabel('单价(元)', fontproperties=getChineseFont())
-    plt.title('房屋售价图', fontproperties=getChineseFont())
-    plt.xticks(fontproperties=getChineseFont())
-    plt.legend(prop=getChineseFont())
-    plt.tight_layout()
-    plt.savefig(PIC_PATH + name + '.png')
+    matplotlib.pyplot.ylabel('单价(元)', fontproperties=getChineseFont())
+    matplotlib.pyplot.title('房屋售价图', fontproperties=getChineseFont())
+    matplotlib.pyplot.xticks(fontproperties=getChineseFont())
+    matplotlib.pyplot.legend(prop=getChineseFont())
+    matplotlib.pyplot.tight_layout()
+    matplotlib.pyplot.savefig(PIC_PATH + name + '.png')
 
 #累计3天无统计信息，则不再采集
 def drop_invalid_house():
@@ -347,12 +344,53 @@ def house_analyze():
     plot_group_fenbu()
     plot_groupby_name('紫薇*田园*都市')
 
+
+def collect_progress_task():
+
+    client = pymongo.MongoClient('localhost', 27017, connect=False)
+    house = client[db_house]
+    url_list = house['网址列表页']
+    while True:
+        print('获取房屋进度:{}/{}' .format(url_list.find({'采集完毕': True}).count() , url_list.find().count()))
+        time.sleep(10)
+    pass
+
+
 def main():
+
+    if (len(sys.argv) > 1):
+        c_flg = '-c' in sys.argv[1:]
+        s_flg = '-s' in sys.argv[1:]
+        a_flg = '-a' in sys.argv[1:]
+        r_flg = '-r' in sys.argv[1:]
+    else:
+        c_flg = s_flg = a_flg = r_flg = True
+
     print('采集开始时间：', time.ctime())
-    collect_house_urls_entry()
-    collect_house_info_entry()
-    export_db_to_file()
-    house_analyze()
+    if r_flg == True:
+        set_total_collect_satus({'采集状态行': True, '列表是否完整': False, '采集日期': C_DAY})
+    if c_flg:
+        print('开始收集列表页')
+        collect_house_urls_entry()
+        print('列表页收集完毕')
+
+        t = threading.Thread(target=collect_progress_task)
+        t.setDaemon(True)  # don't hang on exit
+        t.start()
+
+        print('开始收集详细页')
+        collect_house_info_entry()
+        print('详细页收集完毕')
+
+    if s_flg:
+        print('开始保存数据')
+        export_db_to_file()
+        print('保存数据完毕')
+
+    if a_flg:
+        print('开始分析数据')
+        house_analyze()
+        print('分析数据结束')
     print('采集结束时间：', time.ctime())
 if __name__ == '__main__':
     main()

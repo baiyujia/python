@@ -73,11 +73,11 @@ def set_total_collect_satus(newRec):
     status.insert_one(newRec)
     return
 
-def set_house_collect_satus(url):
+def set_house_collect_satus(url,state = True):
     client = pymongo.MongoClient('localhost', 27017, connect=False)
     house = client[db_house]
     url_list = house['网址列表页']
-    url_list.update_one({'网址': url}, {'$set': {'采集完毕': True}}, upsert=True)
+    url_list.update_one({'网址': url}, {'$set': {'采集完毕': state}}, upsert=True)
     return
 
 
@@ -85,7 +85,7 @@ def insert_url_to_db(record):
     client = pymongo.MongoClient('localhost', 27017, connect=False)
     house = client[db_house]
     url_list = house['网址列表页']
-    if url_list.find_one({'网址': record}) == None:
+    if url_list.find_one({'网址': record['网址']}) == None:
         url_list.insert_one(record)
 
 def check_if_page_collected(url):
@@ -100,4 +100,20 @@ def check_if_page_collected(url):
     else:
         return False
 
-
+'''
+client = pymongo.MongoClient('localhost', 27017, connect=False)
+house = client[db_house]
+url_list = house['网址列表页']
+uset={url['网址'] for url in url_list.find()}
+len(uset)
+12081
+ulist=[url['网址'] for url in url_list.find()]
+uset=set()
+for l in url_list.find():
+    if l['网址'] in uset:
+        url_list.delete_one({'_id':l['_id']})
+    else:
+        uset.add(l['网址'])
+'''
+if __name__ == '__main__':
+    pass
