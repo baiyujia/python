@@ -19,6 +19,7 @@ NORMAL_STATE = 'normal state'
 def get_page_state(soup):
     if '访问验证-安居客' in soup.title.text:
         print('访问受限制了，需要手动验证')
+        print('\a')
         time.sleep(10)
         return FORBIDDEN_STATE
     elif '您要浏览的网页可能被删除' in soup.title.text:

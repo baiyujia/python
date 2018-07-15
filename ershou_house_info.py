@@ -33,12 +33,14 @@ def insert_houseinfo_to_db(info_record):
     house = client[db_house]
 
     lp_info = house['楼盘信息页']
-    db_record = lp_info.find_one({'网址': info_record['网址']})
-    if db_record == None:
-        lp_info.insert_one(info_record)
-        # print('获取房屋:{}'.format(info_record['标题']))
-    else:
-        lp_info.update_one({'网址': info_record['网址']}, {'$set': info_record})
+
+    lp_info.update_one({'网址': info_record['网址']}, {'$set': info_record}, upsert=True)
+    #db_record = lp_info.find_one({'网址': info_record['网址']})
+    # if db_record == None:
+    #     lp_info.insert_one(info_record)
+    #     # print('获取房屋:{}'.format(info_record['标题']))
+    # else:
+    #     lp_info.update_one({'网址': info_record['网址']}, {'$set': info_record},upsert=True)
         #print('更新房屋:{}'.format(info_record['标题']))
 def getChineseFont():
     return FontProperties(fname='/Library/Fonts/Songti.ttc')
@@ -82,7 +84,7 @@ def collect_house_urls(page):
 def parse_house_info(url):
     delaytime = random.randint(1,3)
     time.sleep(delaytime)
-
+    #print('采集房屋',url)
     wb_data = requests.get(url,headers=headers)
     soup = BeautifulSoup(wb_data.text, 'lxml')
 
@@ -116,6 +118,12 @@ def parse_house_info(url):
     total_price = soup.select(
         '#content > div.wrapper > div.wrapper-lf.clearfix > div.basic-info.clearfix > span.light.info-tag > em')[0].text
     info_record['总价' + '_' + C_DAY] = total_price
+    info = soup.select('#content > div.wrapper > div.wrapper-lf.clearfix > div.houseInfoBox > div > div.houseInfo-desc > div > div')
+    clear_text = info[0].text.replace('\n', '').strip()
+    info_record['核心卖点'+'_'+ C_DAY] = clear_text
+
+    clear_text = info[1].text.replace('\n', '').strip()
+    info_record['业主心态'+'_'+ C_DAY] = clear_text
     return info_record,NORMAL_STATE
 
 # 获取指定的楼盘的信息：价格，位置，开盘时间 等
@@ -176,7 +184,7 @@ def get_collect_house_list():
             if lp['网址'] not in url_list_para:
                 url_list_para.add(lp['网址'])
                 url_list.insert_one({'网址': lp['网址'], '采集完毕': False } )
-
+    url_list_para -= {rec['网址'] for rec in url_list.find() if rec['采集完毕'] == True}
     print('加上上次记录的二手房屋个数后，变成：',len(url_list_para))
     return url_list_para
 
@@ -186,7 +194,7 @@ def collect_house_info_entry():
     url_list_para = get_collect_house_list()
     #无效的房屋直接设置为采集完毕
     drop_invalid_house()
-    pool = Pool(processes=5)
+    pool = Pool(processes=20)
     pool.map(collect_house_info, url_list_para)
     pool.close()
     pool.join()
@@ -202,7 +210,7 @@ def export_db_to_file():
     for info in lp_info.find():
         pd_data = DataFrame.from_dict(info, orient='index').T
         df = df.append(pd_data, ignore_index=True,sort=True)
-    df.to_csv(PIC_PATH + 'house' + C_DAY + '.csv', sep=',', encoding='utf-8')
+    df.to_csv(PIC_PATH + 'house' + C_DAY + '.csv', sep=',')
     print('导出完毕！')
 
 def plot_price_going():
@@ -234,13 +242,14 @@ def plot_price_going():
     data_df = pd.read_csv(PIC_PATH + 'house' + C_DAY + '.csv',index_col='标题')
 
     df = data_df.loc[biaoi_list].filter(regex='总价').T
-    for i in range(10,len(bodong_lp_list)+1,10):
+    for i in range(5,len(bodong_lp_list)+1,5):
         #plt.figure(1,figsize=(16,10),dpi=300)
 
-        df.iloc[:, i-10:i].plot(rot=90,figsize=(16,9),grid=True)
+        df.iloc[:, i-5:i].plot(rot=90,figsize=(8,5),grid=True)
+
         matplotlib.pyplot.ylabel('总价(万元)',fontproperties=getChineseFont())
         matplotlib.pyplot.title('房价波动图(2018_6_30至'+C_DAY+')',fontproperties=getChineseFont())
-        matplotlib.pyplot.xticks(fontproperties=getChineseFont())
+        matplotlib.pyplot.xticks(range(0,15,1), fontproperties=getChineseFont())
         matplotlib.pyplot.legend(prop=getChineseFont())
         matplotlib.pyplot.tight_layout()
         matplotlib.pyplot.savefig(PIC_PATH + '房价波动图' + str(int(i/10)) + '.png')
@@ -313,7 +322,7 @@ def house_hebing():
         j=0
         repeat_bt=set()
         for info in lp_info.find({'网址': repeat_wz.pop()}):
-            if j==0:
+            if j == 0:
                 tmp = info
             else:
                 repeat_bt.add(info['标题'])
@@ -347,8 +356,8 @@ def house_analyze():
 
 def collect_progress_task():
 
-    client = pymongo.MongoClient('localhost', 27017, connect=False)
-    house = client[db_house]
+    client   = pymongo.MongoClient('localhost', 27017, connect=False)
+    house    = client[db_house]
     url_list = house['网址列表页']
     while True:
         print('获取房屋进度:{}/{}' .format(url_list.find({'采集完毕': True}).count() , url_list.find().count()))
@@ -357,14 +366,14 @@ def collect_progress_task():
 
 
 def main():
-
+    c_flg = s_flg = a_flg = r_flg = False
+    a_flg = True
     if (len(sys.argv) > 1):
-        c_flg = '-c' in sys.argv[1:]
-        s_flg = '-s' in sys.argv[1:]
-        a_flg = '-a' in sys.argv[1:]
-        r_flg = '-r' in sys.argv[1:]
-    else:
-        c_flg = s_flg = a_flg = r_flg = True
+        c_flg = '-collect' in sys.argv[1:]
+        s_flg = '-save' in sys.argv[1:]
+        a_flg = '-analyze' in sys.argv[1:]
+        r_flg = '-restart' in sys.argv[1:]
+
 
     print('采集开始时间：', time.ctime())
     if r_flg == True:
