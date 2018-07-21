@@ -12,6 +12,7 @@ from pachong_status import *
 from matplotlib.font_manager import FontManager, FontProperties
 import matplotlib
 import sys
+import os
 import threading
 headers = {
     'cookies': 'ctid=31; aQQ_ajkguid=D0174100-3E84-3050-1537-SX0626220205; sessid=F458D7EC-B0CE-6BA4-C930-SX0626220205; isp=true; twe=2; 58tj_uuid=2f50f7d6-4abf-4c60-8eae-cbaf641f9580; Hm_lvt_c5899c8768ebee272710c9c5f365a6d8=1530021729; als=0; ajk_member_captcha=38a0011b908a1c16fca40584e66cf3ab; lp_lt_ut=a34ae0a5041a1ac2ab5058b3ff39ac1d; lps=http%3A%2F%2Fxa.anjuke.com%2Fsale%2Fp1%2F%7C; init_refer=; new_uv=7; _ga=GA1.2.466653724.1530276981; _gid=GA1.2.612205714.1530276981; browse_comm_ids=398617; new_session=0; propertys=kxqo1b-pb35gy_; Hm_lpvt_c5899c8768ebee272710c9c5f365a6d8=1530277715; _gat=1; __xsptplusUT_8=1; __xsptplus8=8.5.1530276981.1530277735.10%234%7C%7C%7C%7C%7C%23%23LW_EYiniJbsOE0diRvFfQzQG3HUoWAyX%23',
@@ -77,14 +78,13 @@ def collect_house_urls(page):
 
     # 插入楼盘网址
     for url in house_url_list:
-        insert_url_to_db({'网址': url,  '采集完毕':False})
+        insert_url_to_db({'网址': url,  '采集完毕':False , '已过期':False })
         #print('分析网址：',url)
 
 #解析页面的信息
 def parse_house_info(url):
     delaytime = random.randint(1,3)
     time.sleep(delaytime)
-    #print('采集房屋',url)
     wb_data = requests.get(url,headers=headers)
     soup = BeautifulSoup(wb_data.text, 'lxml')
 
@@ -100,13 +100,16 @@ def parse_house_info(url):
     for index,info in enumerate(house_info):
         clear_text = info.text.replace('\t', '').replace('\n', '').replace('\ue003', '').strip()
         info_record[info_dict[index]] = clear_text
-    info_record['网址'] = url
-    info_record['单价'] = info_record['单价'].split(' ')[0]
     try:
+        info_record['网址'] = url
+        info_record['单价'] = info_record['单价'].split(' ')[0]
+        info_record['面积'] = info_record['面积'].split('平方米')[0]
+
+
         clear_text = soup.select('#content > div.clearfix.title-guarantee > h3')[0].text.replace('\t', '').replace('\n', '').strip()
     except:
         print('异常网址:', url)
-        raise
+        return None, PAGE_GONE_STATE
 
     fabu_date = \
     soup.select('#content > div.wrapper > div.wrapper-lf.clearfix > div.houseInfoBox > h4 > span.house-encode')[
@@ -119,12 +122,15 @@ def parse_house_info(url):
         '#content > div.wrapper > div.wrapper-lf.clearfix > div.basic-info.clearfix > span.light.info-tag > em')[0].text
     info_record['总价' + '_' + C_DAY] = total_price
     info = soup.select('#content > div.wrapper > div.wrapper-lf.clearfix > div.houseInfoBox > div > div.houseInfo-desc > div > div')
-    clear_text = info[0].text.replace('\n', '').strip()
-    info_record['核心卖点'+'_'+ C_DAY] = clear_text
+    if len(info) >= 2:
+        clear_text = info[0].text.replace('\n', '').strip()
+        info_record['核心卖点'+'_'+ C_DAY] = clear_text
 
-    clear_text = info[1].text.replace('\n', '').strip()
-    info_record['业主心态'+'_'+ C_DAY] = clear_text
-    return info_record,NORMAL_STATE
+        clear_text = info[1].text.replace('\n', '').strip()
+        info_record['业主心态'+'_'+ C_DAY] = clear_text
+        return info_record,NORMAL_STATE
+    else:
+        return None, PAGE_GONE_STATE
 
 # 获取指定的楼盘的信息：价格，位置，开盘时间 等
 def collect_house_info(url):
@@ -133,7 +139,7 @@ def collect_house_info(url):
     info_record ,pagestate = parse_house_info(url)
     # 页面消失了，可能是下架了，也可能是卖出了，需要把该页面设置为完成状态
     if pagestate == PAGE_GONE_STATE:
-        set_house_collect_satus(url)
+        set_house_collect_satus(url,expired=True)
         return
     # 没有获取成功，不更新状态，以便下一次重新采集
     elif info_record == None:
@@ -142,15 +148,16 @@ def collect_house_info(url):
     set_house_collect_satus(url)
 
 def collect_house_urls_entry():
+    print('开始获取总体采集状态')
     status = get_total_collect_satus()
+    print('获取采集状态完毕')
     if status.find_one()['列表是否完整'] == True:
+        print('今天已经收集过列表页了!')
         return
-
-    client = pymongo.MongoClient('localhost', 27017, connect=False)
-    house = client[db_house]
 
     lp_page_list = [url_address_format.format(str(i)) for i in range(1, 50)]
     pool = Pool(processes=5)
+    print('创建5个进程，开始采集列表页')
     pool.map(collect_house_urls, lp_page_list)
     pool.close()
     pool.join()
@@ -175,6 +182,7 @@ def get_collect_house_list():
     client = pymongo.MongoClient('localhost', 27017, connect=False)
     house = client[db_house]
     url_list = house['网址列表页']
+
     url_list_para = {rec['网址'] for rec in url_list.find()}
     print('从分页显示中爬取的二手房屋个数：',len(url_list_para))
 
@@ -184,7 +192,8 @@ def get_collect_house_list():
             if lp['网址'] not in url_list_para:
                 url_list_para.add(lp['网址'])
                 url_list.insert_one({'网址': lp['网址'], '采集完毕': False } )
-    url_list_para -= {rec['网址'] for rec in url_list.find() if rec['采集完毕'] == True}
+
+    url_list_para -= {rec['网址'] for rec in url_list.find() if rec['采集完毕'] == True or rec['已过期'] == True}
     print('加上上次记录的二手房屋个数后，变成：',len(url_list_para))
     return url_list_para
 
@@ -201,17 +210,53 @@ def collect_house_info_entry():
     #fix_nulldata()
 
 def export_db_to_file():
+    # client = pymongo.MongoClient('localhost', 27017, connect=False)
+    # house = client[db_house]
+    #
+    # lp_info = house['楼盘信息页']
+    # print('开始导出数据库文件到csv文件！')
+    # df = pd.DataFrame(columns=lp_info.find()[0].keys())
+    # for i,  info in enumerate(lp_info.find()):
+    #
+    #     if i % 1000 == 0 :
+    #         print('当前时间：', time.ctime())
+    #     pd_data = DataFrame.from_dict(info, orient='index').T
+    #     df = df.append(pd_data, ignore_index=True,sort=True)
+    # print('dataframe 生成完毕')
+    # df.to_csv(PIC_PATH + 'house' + C_DAY + '.csv', sep=',')
+    # print('导出完毕！')
+
+
+
+
+    cmdstr = 'mongoexport -d house -c 楼盘信息页 -f {} --type=csv -o ' + PIC_PATH + 'house' + C_DAY + '.csv'
+
     client = pymongo.MongoClient('localhost', 27017, connect=False)
     house = client[db_house]
-
     lp_info = house['楼盘信息页']
-    print('开始导出数据库文件到csv文件！')
-    df = pd.DataFrame(columns=lp_info.find()[0].keys())
-    for info in lp_info.find():
-        pd_data = DataFrame.from_dict(info, orient='index').T
-        df = df.append(pd_data, ignore_index=True,sort=True)
-    df.to_csv(PIC_PATH + 'house' + C_DAY + '.csv', sep=',')
-    print('导出完毕！')
+    column_str = ''
+    #获取素有的keys
+    fullkeys = set()
+    for lp in lp_info.find():
+        keys = {key for key in lp.keys()}
+        fullkeys = fullkeys | keys
+    fullkeys = list(fullkeys)
+    fullkeys.sort()
+    #对所有的数据，补充没有列
+    for lp in lp_info.find():
+        for key in fullkeys:
+            lp[key] = lp.get(key,'NA')
+        lp_info.update_one({'_id':lp['_id']},{'$set':lp})
+
+
+    for i , key in enumerate(fullkeys):
+        if i == 0:
+            column_str = key
+        elif key != '_id':
+            column_str = column_str + ',' + key
+    cmdstr = cmdstr.format(column_str)
+    os.popen(cmdstr).readlines()
+
 
 def plot_price_going():
     client = pymongo.MongoClient('localhost', 27017, connect=False)
@@ -237,6 +282,8 @@ def plot_price_going():
             f.write(str_out)
             f.write('\n')
     f.close()
+
+
     biaoi_list = [lp['标题'] for lp in bodong_lp_list]
 
     data_df = pd.read_csv(PIC_PATH + 'house' + C_DAY + '.csv',index_col='标题')
@@ -289,20 +336,7 @@ def plot_groupby_name(name):
 
 #累计3天无统计信息，则不再采集
 def drop_invalid_house():
-    client = pymongo.MongoClient('localhost', 27017, connect=False)
-    house = client[db_house]
-    addrlist={None}
-    lp_info = house['楼盘信息页']
-    discard_cnt = 0
-    for lp in lp_info.find():
-        na_cnt=0
-        for k,v in lp.items():
-            if '总价' in k and v == 'NA':
-                na_cnt += 1
-        if na_cnt > 3:
-            set_house_collect_satus(lp['网址'])
-            discard_cnt += 1
-    print('无效房源总计：',discard_cnt)
+    pass
 
 #由于标题变动，合并相同网址的价格信息
 def house_hebing():
@@ -346,7 +380,20 @@ def house_hebing():
             if '总价' in k:
                 print(k,v)
 
-
+def house_danjia_modify():
+    client = pymongo.MongoClient('localhost', 27017, connect=False)
+    house = client[db_house]
+    addrlist={None}
+    lp_info = house['楼盘信息页']
+    print('开始转换单价')
+    for lp in lp_info.find():
+        lp['面积'] = lp.get('面积','NA')
+    
+        if lp['面积'] != 'NA' and type(lp['面积']) == type('a'):
+            lp['面积'] = float(lp['面积'].split('平方米')[0])
+            lp_info.update_one({'_id': lp['_id']}, {'$set':lp})
+    print('转换完毕')
+    
 #分析波动房源，并且打印出来
 def house_analyze():
     plot_price_going()
@@ -360,14 +407,15 @@ def collect_progress_task():
     house    = client[db_house]
     url_list = house['网址列表页']
     while True:
-        print('获取房屋进度:{}/{}' .format(url_list.find({'采集完毕': True}).count() , url_list.find().count()))
+        print('获取房屋进度:{}' .format(url_list.find({'采集完毕': False}).count()))
         time.sleep(10)
     pass
 
 
 def main():
     c_flg = s_flg = a_flg = r_flg = False
-    a_flg = True
+    c_flg = True
+
     if (len(sys.argv) > 1):
         c_flg = '-collect' in sys.argv[1:]
         s_flg = '-save' in sys.argv[1:]
@@ -401,5 +449,6 @@ def main():
         house_analyze()
         print('分析数据结束')
     print('采集结束时间：', time.ctime())
+
 if __name__ == '__main__':
     main()

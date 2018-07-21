@@ -50,15 +50,16 @@ def get_total_collect_satus():
     # 列表不完整，就删除掉列表
     if status.find_one()['列表是否完整'] == False:
         for url in url_list.find():
-            url_list.update_one({'网址': url['网址']}, {'$set': {'采集完毕': False}})
+            url_list.update_one({'_id': url['_id']}, {'$set': {'采集完毕': False}})
         pass
 
     # 和上次更新日期不同，就删除列表，同时刷新本次日期
     if status.find_one()['采集日期'] != C_DAY:
         # 把url_list中的完成标识设置为false
         # house.drop_collection('网址列表页')
+        print('开始更新数据库中的采集完成标志')
         for url in url_list.find():
-            url_list.update_one({'网址': url['网址']}, {'$set': {'采集完毕': False}})
+            url_list.update_one({'_id': url['_id']}, {'$set': {'采集完毕': False}})
         status.remove()
         status.insert_one({'采集状态行': True, '列表是否完整': False, '采集日期': C_DAY})
 
@@ -74,11 +75,11 @@ def set_total_collect_satus(newRec):
     status.insert_one(newRec)
     return
 
-def set_house_collect_satus(url,state = True):
+def set_house_collect_satus(url,state = True,expired = False):
     client = pymongo.MongoClient('localhost', 27017, connect=False)
     house = client[db_house]
     url_list = house['网址列表页']
-    url_list.update_one({'网址': url}, {'$set': {'采集完毕': state}}, upsert=True)
+    url_list.update_one({'网址': url}, {'$set': {'采集完毕': state,'已过期': expired}})
     return
 
 
