@@ -62,21 +62,26 @@ def price_going(data_df):
     #     matplotlib.pyplot.close()
 
     gr = data_df.groupby(by='楼盘名称')
-    top10_lp = gr.count().sort_values(by='面积',ascending = False).iloc[0:50]
-    plt.figure(figsize=(16, 10))
+    top10_lp = gr.count().sort_values(by='面积',ascending = False).iloc[:-10]
+    plt.figure(figsize=(16, 9))
+    row = 2
+    column = 4
     for i, lp_name  in enumerate(top10_lp.index):
         df = data_df[data_df['楼盘名称'] == lp_name]
         lp_price_stat = price_going_by_lp(df)
 
-
-
-        plt.subplot(5, 1, 1 + i % 5)
+        plt.subplot(row, column, 1 + i % (row*column))
+        plt.tight_layout()
         plt.plot(lp_price_stat['价格走势'])
+        my_y_ticks = np.arange(-0.5,4, 0.5)
+        plt.yticks(my_y_ticks)
+        plt.grid()
+        plt.ylabel(lp_name , fontproperties=getChineseFont())
+        # plt.xlabel('房价波动图(2018_6_30至' + C_DAY + ')', fontproperties=getChineseFont())
 
-        plt.title(lp_name + '房价波动图(2018_6_30至' + C_DAY + ')', fontproperties=getChineseFont())
-        # plt.xticks(range(0, len(price_col), 6), lp_price_stat['日期列表'])
-        if (i % 5 == 4):
-            plt.savefig(PIC_PATH + '楼盘房价波动图' + str(int(i / 5)) + '.png')
+        plt.xticks([0])
+        if ((i + 1) % (row*column) == 0):
+            plt.savefig(PIC_PATH + '楼盘房价波动图' + C_DAY + str(int(i / (row*column))) + '.png')
             plt.figure(figsize=(16, 10))
 
 def price_stat(data_df):
@@ -106,7 +111,7 @@ def price_stat(data_df):
 def price_going_by_lp(data_df):
 
     price_col = [col for col in data_df.columns if '总价' in col]
-    print('日期        ', '房源数   ', '均值     ', '最大值   ', '最小值', '中位数   ','面积   ','单价   ')
+    # print('日期        ', '房源数   ', '均值     ', '最大值   ', '最小值', '中位数   ','面积   ','单价   ')
     lp_price_stat = {}
     '''
         {楼盘名称: str,    价格走势: list    日期列表: list   当日房源数: list}
@@ -123,7 +128,8 @@ def price_going_by_lp(data_df):
         if i == 0:
             continue
         df = data_df[np.isnan(data_df[col]) ^ True]
-
+        if df.shape[0] == 0:
+            continue
         # 过滤超高房价
         if (df[col].max() / df[col].median() > 10):
             df = df[(df[col] < df[col].median() * 2) & (df[col] > df[col].median() / 2)]
@@ -137,11 +143,18 @@ def price_going_by_lp(data_df):
         #           '%8.3f' % (df[col].median() / df['面积'].mean()),
         #           '%8.0f' % df['面积'].mean(),
         #           '%8.0f' % df['单价'].mean())
-
-        last_price = int(df[col].mean())
-        lp_price_stat['价格走势'].append(df[col].mean() / df['面积'].mean())
-        lp_price_stat['日期列表'].append(col.split('总价_')[1])
-        lp_price_stat['当日房源'].append(valid_num)
+        try:
+            last_price = int(df[col].mean())
+        except:
+            print('异常日期1', col,data_df.iloc[0]['楼盘名称'])
+            continue
+        try:
+            lp_price_stat['价格走势'].append(df[col].mean() / df['面积'].mean())
+            lp_price_stat['日期列表'].append(col.split('总价_')[1])
+            lp_price_stat['当日房源'].append(valid_num)
+        except:
+            print('异常日期',col)
+            continue
 
     return lp_price_stat
 if __name__ == '__main__':
