@@ -400,14 +400,20 @@ def house_analyze():
     plot_group_fenbu()
     plot_groupby_name('紫薇*田园*都市')
 
-
+remain_num = [0,0,0,0,0]
 def collect_progress_task():
-
     client   = pymongo.MongoClient('localhost', 27017, connect=False)
     house    = client[db_house]
     url_list = house['网址列表页']
+    i = 0
     while True:
-        print('获取房屋进度:{}' .format(url_list.find({'采集完毕': False}).count()))
+        cnt = url_list.find({'采集完毕': False , '已过期': False}).count()
+        remain_num[i % len(remain_num)] = cnt
+        i += 1
+        if i > 5 and sum(remain_num) / len(remain_num) == remain_num[0]:
+            print('采集陷入停滞状态')
+            print('\a')
+        print('待采集房屋数量:{}' .format(cnt))
         time.sleep(10)
     pass
 
