@@ -123,11 +123,11 @@ def parse_house_info(url):
     info_record['总价' + '_' + C_DAY] = total_price
     info = soup.select('#content > div.wrapper > div.wrapper-lf.clearfix > div.houseInfoBox > div > div.houseInfo-desc > div > div')
     if len(info) >= 2:
-        clear_text = info[0].text.replace('\n', '').strip()
-        info_record['核心卖点'+'_'+ C_DAY] = clear_text
-
-        clear_text = info[1].text.replace('\n', '').strip()
-        info_record['业主心态'+'_'+ C_DAY] = clear_text
+        # clear_text = info[0].text.replace('\n', '').strip()
+        # info_record['核心卖点'+'_'+ C_DAY] = clear_text
+        #
+        # clear_text = info[1].text.replace('\n', '').strip()
+        # info_record['业主心态'+'_'+ C_DAY] = clear_text
         return info_record,NORMAL_STATE
     else:
         return None, PAGE_GONE_STATE
@@ -154,13 +154,26 @@ def collect_house_urls_entry():
     if status.find_one()['列表是否完整'] == True:
         print('今天已经收集过列表页了!')
         return
+    client   = pymongo.MongoClient('localhost', 27017, connect=False)
+    house    = client[db_house]
+    url_list = house['网址列表页']
+    last_cnt = url_list.find().count()
+    wangzhi = {url['网址'] for url in url_list.find()}
+    while(True):
+        lp_page_list = [url_address_format.format(str(i)) for i in range(1, 30)]
+        pool = Pool(processes=5)
+        print('创建5个进程，开始采集列表页')
+        pool.map(collect_house_urls, lp_page_list)
+        pool.close()
+        pool.join()
+        print('上次列表数{}，本次列表数{}'.format(last_cnt, url_list.find().count()))
+        wangzhi_diff = {url['网址'] for url in url_list.find()} - wangzhi
+        wangzhi = {url['网址'] for url in url_list.find()}
+        print(wangzhi_diff)
+        if url_list.find().count() - last_cnt < 100:
+            break
+        last_cnt = url_list.find().count()
 
-    lp_page_list = [url_address_format.format(str(i)) for i in range(1, 50)]
-    pool = Pool(processes=5)
-    print('创建5个进程，开始采集列表页')
-    pool.map(collect_house_urls, lp_page_list)
-    pool.close()
-    pool.join()
 
     set_total_collect_satus( {'采集状态行': True, '列表是否完整': True, '采集日期': C_DAY})
     print('获取网址列表成功')
@@ -193,7 +206,7 @@ def get_collect_house_list():
                 url_list_para.add(lp['网址'])
                 url_list.insert_one({'网址': lp['网址'], '采集完毕': False } )
 
-    url_list_para -= {rec['网址'] for rec in url_list.find() if rec['采集完毕'] == True or rec['已过期'] == True}
+    url_list_para -= {rec['网址'] for rec in url_list.find() if rec['采集完毕'] == True or rec.get('已过期',False) == True}
     print('加上上次记录的二手房屋个数后，变成：',len(url_list_para))
     return url_list_para
 
